@@ -1,24 +1,20 @@
 FROM node:20-alpine
 
-# Instala dependencias del sistema
-RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip curl
+# Instala dependencias del sistema y yt-dlp
+RUN apk add --no-cache ffmpeg python3 py3-pip curl && \
+    pip3 install --no-cache-dir yt-dlp
 
-# Instala yt-dlp
-RUN pip3 install yt-dlp
-
-# Instalar FFmpeg y otras dependencias necesarias
-RUN apk add --no-cache ffmpeg python3 py3-pip curl yt-dlp
-
-# Crear directorio de trabajo
+# Crea el directorio de trabajo
 WORKDIR /app
+
+# Copia los archivos del proyecto
 COPY . .
 
-# Cambiar propietario de archivos
-RUN chown -R discord:nodejs /app
-USER discord
-
-# Exponer puerto (si necesitas webhook)
-EXPOSE 3000
+# Instala dependencias de Node.js
 RUN npm install
 
+# Exponer puerto (si lo necesitas)
+EXPOSE 3000
+
+# Comando por defecto
 CMD ["node", "discord_music_bot.js"]
