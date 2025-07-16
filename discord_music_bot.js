@@ -3,6 +3,7 @@ const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerSta
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
+const { spawn } = require('child_process');
 
 // Importar módulos
 const MusicQueue = require('./modules/musicQueue');
@@ -75,80 +76,93 @@ async function prepareNextSong(queue) {
     }
 }
 
+// Modificar getYtDlpStream para usar ./yt-dlp si existe
+function getYtDlpPath() {
+    const localYtDlp = path.resolve(__dirname, '../yt-dlp');
+    if (fs.existsSync(localYtDlp)) return localYtDlp;
+    return 'yt-dlp';
+}
+async function getYtDlpStream(youtubeUrl) {
+    return new Promise((resolve, reject) => {
+        const ytdlpPath = getYtDlpPath();
+        const ytdlp = spawn('python', [
+            '-m', ytdlpPath,
+            '-f', 'bestaudio[ext=m4a]/bestaudio/best',
+            '-o', '-',
+            '--quiet',
+            '--no-warnings',
+            youtubeUrl
+        ], { stdio: ['ignore', 'pipe', 'ignore'] });
+        ytdlp.on('error', (err) => {
+            reject(new Error('No se pudo iniciar yt-dlp. ¿Está Python y yt-dlp instalados? ' + err));
+        });
+        ytdlp.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`yt-dlp terminó con código ${code}`));
+            }
+        });
+        resolve(ytdlp.stdout);
+    });
+}
+
 // Función para reproducir música usando yt-dlp
 async function playMusic(guildId, channel) {
     const queue = queues.get(guildId);
     if (!queue || queue.isEmpty()) {
+        console.log('[DEBUG] Cola vacía o no existe para guild', guildId);
         await updateMusicPanel(null, queue, client);
         return;
     }
-
-    // --- Control de concurrencia ---
-    if (queue.isProcessing) return;
+    if (queue.isProcessing) {
+        console.log('[DEBUG] Ya se está procesando música para guild', guildId);
+        return;
+    }
     queue.isProcessing = true;
-
     try {
-        // Lazy loading: obtener la siguiente canción lista para reproducir
         const song = await queue.getNextPlayableSong();
-
-        // Si no hay ninguna canción válida tras revisar toda la cola
         if (!song || !song.url) {
+            console.log('[DEBUG] No se encontró canción reproducible en la cola', queue.songs);
             await channel.send('❌ No se encontró ninguna canción reproducible en la cola. Se detiene la reproducción.');
             queue.isPlaying = false;
             queue.currentSong = null;
             await updateMusicPanel(null, queue, client);
             return;
         }
-
         queue.currentSong = song;
-
-        // Pre-cargar la siguiente canción pendiente en background
         prepareNextSong(queue);
-
         try {
-            // Obtener stream de audio con yt-dlp
+            console.log('[DEBUG] Intentando obtener stream con yt-dlp para', song.url);
             const audioStream = await getYtDlpStream(song.url);
-            // Crear recurso de audio con control de volumen
+            console.log('[DEBUG] Stream obtenido, creando recurso de audio con ffmpeg');
             const resource = createAudioResource(audioStream, { inlineVolume: true });
-            resource.volume.setVolume(0.1); // 20% de volumen por defecto
-
-            // Configurar reproductor
+            resource.volume.setVolume(0.1);
             if (!queue.player) {
                 queue.player = createAudioPlayer();
                 queue.connection.subscribe(queue.player);
             } else {
-                // Limpiar listeners antiguos (por ejemplo, de la radio)
                 queue.player.removeAllListeners();
             }
-
             queue.player.play(resource);
             queue.isPlaying = true;
-
-            // Configurar eventos del reproductor
             queue.player.on(AudioPlayerStatus.Idle, async () => {
                 queue.isPlaying = false;
                 if (!queue.isEmpty()) {
                     playMusic(guildId, channel);
                 } else {
-                    // Si la cola está vacía, actualiza el panel a presentación
                     await updateMusicPanel(null, queue, client);
                 }
             });
-
             queue.player.on('error', error => {
-                console.error('Error en el reproductor:', error);
+                console.error('[DEBUG] Error en el reproductor:', error);
                 queue.isPlaying = false;
                 if (!queue.isEmpty()) {
                     playMusic(guildId, channel);
                 }
             });
-
-            // Actualizar panel de música
             await updateMusicPanel(song, queue, client);
-
         } catch (error) {
-            console.error('Error al reproducir música:', error);
-            channel.send('❌ Error al reproducir la canción. Asegúrate de tener yt-dlp y Python instalados.');
+            console.error('[DEBUG] Error al reproducir música:', error);
+            channel.send('❌ Error al reproducir la canción. Asegúrate de tener yt-dlp y FFmpeg instalados.');
             if (!queue.isEmpty()) {
                 playMusic(guildId, channel);
             }
