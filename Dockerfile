@@ -1,31 +1,14 @@
-# Usar Node.js 18 Alpine para imagen más ligera
-FROM node:18-alpine
+FROM node:20
 
-# Instalar FFmpeg y otras dependencias necesarias
-RUN apk add --no-cache ffmpeg python3 make g++
+# Instala dependencias del sistema
+RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip curl
 
-# Crear directorio de trabajo
+# Instala yt-dlp
+RUN pip3 install yt-dlp
+
 WORKDIR /app
-
-# Copiar archivos de configuración
-COPY package*.json ./
-
-# Instalar dependencias
-RUN npm ci --only=production
-
-# Copiar código fuente
 COPY . .
 
-# Crear usuario no-root por seguridad
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S discord -u 1001
+RUN npm install
 
-# Cambiar propietario de archivos
-RUN chown -R discord:nodejs /app
-USER discord
-
-# Exponer puerto (si necesitas webhook)
-EXPOSE 3000
-
-# Comando para ejecutar el bot
 CMD ["node", "discord_music_bot.js"]
