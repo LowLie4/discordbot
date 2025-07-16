@@ -1,8 +1,7 @@
 FROM node:20-alpine
 
-# Instala dependencias del sistema y yt-dlp
-RUN apk add --no-cache ffmpeg python3 py3-pip curl && \
-    pip3 install --no-cache-dir yt-dlp
+# Instala dependencias del sistema y yt-dlp (usando solo apk)
+RUN apk add --no-cache ffmpeg python3 py3-pip curl py3-yt-dlp
 
 # Crea el directorio de trabajo
 WORKDIR /app
