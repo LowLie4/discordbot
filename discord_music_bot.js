@@ -77,33 +77,6 @@ async function prepareNextSong(queue) {
 }
 
 // Modificar getYtDlpStream para usar ./yt-dlp si existe
-function getYtDlpPath() {
-    const localYtDlp = path.resolve(__dirname, '../yt-dlp');
-    if (fs.existsSync(localYtDlp)) return localYtDlp;
-    return 'yt-dlp';
-}
-async function getYtDlpStream(youtubeUrl) {
-    return new Promise((resolve, reject) => {
-        const ytdlpPath = getYtDlpPath();
-        const ytdlp = spawn('python', [
-            '-m', ytdlpPath,
-            '-f', 'bestaudio[ext=m4a]/bestaudio/best',
-            '-o', '-',
-            '--quiet',
-            '--no-warnings',
-            youtubeUrl
-        ], { stdio: ['ignore', 'pipe', 'ignore'] });
-        ytdlp.on('error', (err) => {
-            reject(new Error('No se pudo iniciar yt-dlp. ¿Está Python y yt-dlp instalados? ' + err));
-        });
-        ytdlp.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`yt-dlp terminó con código ${code}`));
-            }
-        });
-        resolve(ytdlp.stdout);
-    });
-}
 
 // Función para reproducir música usando yt-dlp
 async function playMusic(guildId, channel) {
