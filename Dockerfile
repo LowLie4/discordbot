@@ -1,4 +1,4 @@
-FROM node:20
+FROM node:20-alpine
 
 # Instala dependencias del sistema
 RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip curl
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip curl
 RUN pip3 install yt-dlp
 
 # Instalar FFmpeg y otras dependencias necesarias
-RUN apk add --no-cache ffmpeg python3 make g++
+RUN apk add --no-cache ffmpeg python3 py3-pip curl yt-dlp
 
 # Crear directorio de trabajo
 WORKDIR /app
